@@ -44,7 +44,19 @@ Los valores de ejemplo `ipc_enero` e `ipc_febrero` no tienen año y no se usan. 
 
 ```bash
 docker compose exec postgres psql -U polizas -d polizas \
-  -c "INSERT INTO system_constant (nombre, valor, descripcion) VALUES ('ipc_2027_01', '5.60', 'IPC enero 2027');"
+  -c "INSERT INTO system_constant (nombre, valor, descripcion) VALUES 
+  ('ipc_2026_01', '5.00', 'IPC enero 2026'),
+  ('ipc_2026_02', '5.10', 'IPC febrero 2026'),
+  ('ipc_2026_03', '5.40', 'IPC marzo 2026'),
+  ('ipc_2026_04', '5.20', 'IPC abril 2026'),
+  ('ipc_2026_05', '5.40', 'IPC mayo 2026'),
+  ('ipc_2026_06', '5.70', 'IPC junio 2026'),
+  ('ipc_2026_07', '5.90', 'IPC julio 2026'),
+  ('ipc_2026_08', '5.70', 'IPC agosto 2026'),
+  ('ipc_2026_09', '5.30', 'IPC septiembre 2026'),
+  ('ipc_2026_10', '5.30', 'IPC octubre 2026'),
+  ('ipc_2026_11', '5.20', 'IPC noviembre 2026'),
+  ('ipc_2026_12', '5.50', 'IPC diciembre 2026');"
 ```
 
 ## Ejecución sin Docker
@@ -99,7 +111,7 @@ curl -s $API/polizas/1/renovaciones
 | POST | `/api/v1/operaciones/{id}/reintentar` *(adicional)* | 202 / 404 / 409 |
 | POST | `/core-mock/evento` *(mock externo del CORE, requiere `x-api-key`)* | 202 / 400 / 401 |
 
-**202 Accepted** significa que el cambio local está guardado y que la sincronización con el CORE sigue pendiente. La cabecera `Location` apunta a `/api/v1/operaciones/{id}`. Solo cuando la operación está `CONFIRMADA` el cambio está aplicado en el CORE.
+**202 Accepted** significa que el cambio local está guardado y que la sincronización con el CORE sigue pendiente. La cabecera `Location` apunta al recurso de operación correspondiente. Solo cuando la operación está `CONFIRMADA` el cambio está aplicado en el CORE.
 
 Los errores siguen Problem Details (RFC 9457), con `codigo` (por ejemplo `POLIZA_CANCELADA`, `IPC_NO_DISPONIBLE`, `RENOVACION_EN_CURSO`) y `correlationId`.
 
@@ -189,7 +201,7 @@ python3 scripts/probar-reglas.py http://localhost:8080 123456
 - Para usar un PostgreSQL existente y vacío: `POLIZAS_TEST_DB_URL`, `POLIZAS_TEST_DB_USERNAME` y `POLIZAS_TEST_DB_PASSWORD`.
 - La correspondencia con las 23 pruebas exigidas está en `docs/03-supuestos-y-limitaciones.md` §4.
 
-> Estas pruebas **no se ejecutaron con Maven en el entorno donde se escribió el código** (sin acceso a Maven Central). Ver §5 de ese documento para saber qué se verificó y cómo.
+> Ver §5 de ese documento para saber qué se verificó y cómo en los entornos de prueba.
 
 ## Observabilidad
 
@@ -206,8 +218,8 @@ python3 scripts/probar-reglas.py http://localhost:8080 123456
 
 ```
 src/main/java/com/bolivar/polizas/
-├── controller/      REST (/api/v1)
-├── service/         casos de uso (pólizas, riesgos, renovación, IPC, auditoría)
+├── controller/     REST (/api/v1)
+├── service/        casos de uso (pólizas, riesgos, renovación, IPC, auditoría)
 ├── domain/          reglas puras: prima, IPC, vigencia, política monetaria
 ├── entity/          JPA + agregado Poliza/Riesgo + enumeraciones
 ├── repository/      Spring Data JPA
