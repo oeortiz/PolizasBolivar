@@ -1,0 +1,43 @@
+# Ejecución local: PostgreSQL 16 + API.
+#   cp .env.example .env   (y defina DB_PASSWORD)
+#   docker compose up --build
+# Por defecto el CORE es SIMULADO: ninguna mutación sale hacia un CORE real.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-polizas}
+      POSTGRES_USER: ${DB_USERNAME:-polizas}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Defina DB_PASSWORD en el archivo .env}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-polizas}
+      DB_USERNAME: ${DB_USERNAME:-polizas}
+      DB_PASSWORD: ${DB_PASSWORD}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-json}
+      HEALTH_SHOW_DETAILS: ${HEALTH_SHOW_DETAILS:-always}
+    ports:
+      - "8080:8080"
+    # Para el adaptador WEBLOGIC, monte keystore y truststore como solo lectura
+    # (nunca dentro de la imagen ni del repositorio) y apunte WEBLOGIC_*_PATH a /certs:
+    # volumes:
+    #   - ./certs:/certs:ro
+
+volumes:
+  pgdata:

@@ -1,0 +1,10 @@
+target/
+.git/
+.idea/
+.vscode/
+*.iml
+.env
+*.p12
+*.jks
+*.pem
+*.key

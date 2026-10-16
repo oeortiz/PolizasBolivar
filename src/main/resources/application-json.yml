@@ -1,0 +1,6 @@
+# Perfil "json": logs estructurados (Elastic Common Schema) en consola, listos para un
+# agregador. Incluye el MDC, por lo que cada evento lleva su correlationId.
+logging:
+  structured:
+    format:
+      console: ecs

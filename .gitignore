@@ -1,0 +1,11 @@
+target/
+*.iml
+.idea/
+.vscode/
+.DS_Store
+# Secretos y certificados: nunca al repositorio
+.env
+*.p12
+*.jks
+*.pem
+*.key
