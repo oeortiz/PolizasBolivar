@@ -1,7 +1,9 @@
 package com.bolivar.polizas.config;
 
+import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -13,7 +15,12 @@ public class OpenApiConfig {
 
     @Bean
     public OpenAPI polizasOpenApi() {
-        return new OpenAPI().info(new Info()
+        return new OpenAPI()
+                .components(new Components().addSecuritySchemes(CoreMockApiKeyFilter.ESQUEMA_SEGURIDAD,
+                        new SecurityScheme().type(SecurityScheme.Type.APIKEY).in(SecurityScheme.In.HEADER)
+                                .name(CoreMockApiKeyFilter.HEADER)
+                                .description("Solo para /core-mock/**")))
+                .info(new Info()
                 .title("API de pólizas de arrendamiento")
                 .version("v1")
                 .description("""
@@ -31,6 +38,8 @@ public class OpenApiConfig {
 
                         **Errores:** formato Problem Details (RFC 9457) con `codigo` y `correlationId`.
 
-                        **Trazabilidad:** envíe `X-Correlation-Id` (UUID) o se generará uno; se devuelve en la respuesta."""));
+                        **Trazabilidad:** envíe `X-Correlation-Id` (UUID) o se generará uno; se devuelve en la respuesta.
+
+                        **Mock del CORE:** `POST /core-mock/evento` solo registra en el log el intento de envío; exige la cabecera `x-api-key` (botón *Authorize*)."""));
     }
 }

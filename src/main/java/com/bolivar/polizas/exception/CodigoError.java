@@ -29,5 +29,7 @@ public enum CodigoError {
     /** Hay una renovación anterior de la póliza aún no confirmada por el CORE (409). */
     RENOVACION_EN_CURSO,
     /** Solo una operación FALLIDA puede reabrirse manualmente (409). */
-    OPERACION_NO_REINTENTABLE
+    OPERACION_NO_REINTENTABLE,
+    /** Falta la cabecera x-api-key del mock del CORE o no coincide (401). */
+    API_KEY_INVALIDA
 }

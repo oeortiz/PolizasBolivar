@@ -3,9 +3,9 @@
 API REST para administrar pólizas de arrendamiento **individuales y colectivas**: riesgos, prima, renovación con IPC, cancelaciones e historial. Toda mutación se sincroniza con el **CORE de seguros** a través del servicio de edición publicado en **WebLogic**.
 
 - Java 21 · Spring Boot 3.5 · Maven · PostgreSQL 16 · Flyway
-- Arquitectura por capas + hexagonal + Event-Driven con Transactional Outbox 
-- Modelo de datos y decisiones por etapa 
-- Supuestos, matriz de pruebas, estado de la verificación y limitaciones
+- Arquitectura por capas + hexagonal + Event-Driven con Transactional Outbox → [`docs/02-arquitectura.md`](docs/02-arquitectura.md)
+- Modelo de datos y decisiones por etapa → [`docs/01-modelo-datos.md`](docs/01-modelo-datos.md)
+- Supuestos, matriz de pruebas, estado de la verificación y limitaciones → [`docs/03-supuestos-y-limitaciones.md`](docs/03-supuestos-y-limitaciones.md)
 
 > **Por defecto el CORE está SIMULADO.** Ninguna mutación llega a un CORE real hasta que se configure `CORE_ADAPTADOR=WEBLOGIC` con URL, credenciales y certificados reales. Cada operación indica qué adaptador la procesó (`adaptador: SIMULADO | WEBLOGIC`).
 
@@ -31,16 +31,12 @@ cp .env.example .env
 docker compose up --build
 ```
 
-> [!WARNING]
-> Recuerda cambiar IP-CONTENEDOR por la ip de tu contenedor recién creado
-
-
 | URL | Contenido |
 |---|---|
-| http://IP-CONTENEDOR:8080/swagger-ui.html | Swagger UI |
-| http://IP-CONTENEDOR:8080/v3/api-docs | OpenAPI 3 (JSON) |
-| http://IP-CONTENEDOR:8080/actuator/health | Salud (incluye `integracionCore`) |
-| http://IP-CONTENEDOR:8080/actuator/prometheus | Métricas |
+| http://localhost:8080/swagger-ui.html | Swagger UI |
+| http://localhost:8080/v3/api-docs | OpenAPI 3 (JSON) |
+| http://localhost:8080/actuator/health | Salud (incluye `integracionCore`) |
+| http://localhost:8080/actuator/prometheus | Métricas |
 
 ### Cargar el IPC para renovar
 
@@ -48,20 +44,7 @@ Los valores de ejemplo `ipc_enero` e `ipc_febrero` no tienen año y no se usan. 
 
 ```bash
 docker compose exec postgres psql -U polizas -d polizas \
-  -c "INSERT INTO system_constant (nombre, valor, descripcion) VALUES 
-  ('ipc_2026_01', '5.00', 'IPC enero 2026'),
-  ('ipc_2026_02', '5.10', 'IPC febrero 2026'),
-  ('ipc_2026_03', '5.40', 'IPC marzo 2026'),
-  ('ipc_2026_04', '5.20', 'IPC abril 2026'),
-  ('ipc_2026_05', '5.40', 'IPC mayo 2026'),
-  ('ipc_2026_06', '5.70', 'IPC junio 2026'),
-  ('ipc_2026_07', '5.90', 'IPC julio 2026'),
-  ('ipc_2026_08', '5.70', 'IPC agosto 2026'),
-  ('ipc_2026_09', '5.30', 'IPC septiembre 2026'),
-  ('ipc_2026_10', '5.30', 'IPC octubre 2026'),
-  ('ipc_2026_11', '5.20', 'IPC noviembre 2026'),
-  ('ipc_2026_12', '5.50', 'IPC diciembre 2026');"
-
+  -c "INSERT INTO system_constant (nombre, valor, descripcion) VALUES ('ipc_2027_01', '5.60', 'IPC enero 2027');"
 ```
 
 ## Ejecución sin Docker
@@ -114,6 +97,7 @@ curl -s $API/polizas/1/renovaciones
 | GET | `/api/v1/polizas/{id}/renovaciones` *(adicional)* | 200 / 404 |
 | GET | `/api/v1/operaciones/{id}` *(adicional)* | 200 / 404 |
 | POST | `/api/v1/operaciones/{id}/reintentar` *(adicional)* | 202 / 404 / 409 |
+| POST | `/core-mock/evento` *(mock externo del CORE, requiere `x-api-key`)* | 202 / 400 / 401 |
 
 **202 Accepted** significa que el cambio local está guardado y que la sincronización con el CORE sigue pendiente. La cabecera `Location` apunta a `/api/v1/operaciones/{id}`. Solo cuando la operación está `CONFIRMADA` el cambio está aplicado en el CORE.
 
@@ -142,7 +126,31 @@ WEBLOGIC_KEYSTORE_PATH=/certs/cliente.p12      WEBLOGIC_KEYSTORE_PASSWORD=...
 WEBLOGIC_TRUSTSTORE_PATH=/certs/confianza.p12  WEBLOGIC_TRUSTSTORE_PASSWORD=...
 ```
 
-y monte los certificados como volumen de solo lectura (ver el comentario en `docker-compose.yml`). 
+y monte los certificados como volumen de solo lectura (ver el comentario en `docker-compose.yml`). Si falta algún valor, la aplicación **no arranca** y el error indica qué propiedad falta, sin mostrar su valor. La lista de datos que debe entregar el responsable del CORE está en `docs/03-supuestos-y-limitaciones.md` §3.
+
+### Mock externo del CORE (`/core-mock/evento`)
+
+Endpoint simple cuyo único propósito es **registrar en el log que la operación se intentó enviar al CORE**. No consulta ni modifica pólizas y no llama a ningún sistema.
+
+```bash
+curl -i -X POST http://localhost:8080/core-mock/evento \
+  -H 'Content-Type: application/json' -H 'x-api-key: 123456' \
+  -d '{"evento":"ACTUALIZACION","polizaId":555}'
+# 202 {"registrado":true,"evento":"ACTUALIZACION","polizaId":555,...}
+
+docker compose logs api | grep CORE-MOCK
+# ... CORE-MOCK: se intentó enviar la operación al CORE (evento=ACTUALIZACION, polizaId=555)
+```
+
+| Caso | Respuesta |
+|---|---|
+| `x-api-key` correcta y cuerpo válido | 202 + línea `CORE-MOCK` en el log (con `correlationId`) |
+| Sin `x-api-key` o con valor incorrecto | 401 `API_KEY_INVALIDA` (la clave recibida no se escribe en el log) |
+| `evento` vacío o con caracteres distintos de mayúsculas y `_`, `polizaId` ≤ 0 | 400 `SOLICITUD_INVALIDA` |
+
+La clave se configura con `CORE_MOCK_API_KEY` en `.env` (el ejemplo trae `123456`, el valor del enunciado). Si la variable está vacía, el mock rechaza todo. La validación solo aplica a `/core-mock/**`; en Swagger UI use el botón *Authorize*.
+
+Este mock es independiente del flujo de sincronización (outbox → `CoreMutationPort`), que usa `SimuladoCoreAdapter` o `WebLogicCoreAdapter`.
 
 ### Simulador
 
@@ -161,10 +169,27 @@ Consulte `/api/v1/operaciones/{id}`: verá `intentos` 1 → 2 → 3, un minuto e
 mvn verify
 ```
 
+### Reglas de negocio contra la API en ejecución
+
+`scripts/probar-reglas.py` (solo Python 3 estándar) crea pólizas nuevas y verifica las cuatro reglas esenciales y el mock del CORE (19 comprobaciones):
+
+```bash
+python3 scripts/probar-reglas.py http://localhost:8080 123456
+# Desde Windows: wsl python3 /mnt/c/Projects/PolizasBolivar/scripts/probar-reglas.py http://<ip>:8080 123456
+```
+
+| Regla | Qué comprueba |
+|---|---|
+| Una INDIVIDUAL solo tiene 1 riesgo | Alta con 2 riesgos → 400; agregar riesgo → 409 `RIESGO_ADICIONAL_EN_INDIVIDUAL`; sigue con 1 |
+| No se renueva una cancelada | Renovar tras cancelar → 409 `POLIZA_CANCELADA`; historial vacío |
+| Cancelar la póliza cancela sus riesgos | COLECTIVA de 3 riesgos → póliza `CANCELADA` y los 3 riesgos `CANCELADO` con fecha |
+| Agregar riesgo valida el tipo | COLECTIVA → 202 y prima consolidada; INDIVIDUAL → 409; cancelada → 409 |
+
 - Las pruebas de integración usan **Testcontainers** (PostgreSQL 16) y **requieren Docker**.
 - Para usar un PostgreSQL existente y vacío: `POLIZAS_TEST_DB_URL`, `POLIZAS_TEST_DB_USERNAME` y `POLIZAS_TEST_DB_PASSWORD`.
+- La correspondencia con las 23 pruebas exigidas está en `docs/03-supuestos-y-limitaciones.md` §4.
 
-
+> Estas pruebas **no se ejecutaron con Maven en el entorno donde se escribió el código** (sin acceso a Maven Central). Ver §5 de ese documento para saber qué se verificó y cómo.
 
 ## Observabilidad
 
@@ -199,4 +224,4 @@ src/main/resources/db/migration/   V1–V8 (Flyway)
 - No hay secretos en el repositorio: `.env`, `*.p12`, `*.jks`, `*.pem` y `*.key` están excluidos en `.gitignore` y `.dockerignore`.
 - La imagen se ejecuta con un usuario sin privilegios.
 - Actuator expone solo `health`, `info`, `metrics` y `prometheus`.
-
+- **La API no autentica a los consumidores**: está diseñada para publicarse detrás de un API Gateway que lo haga (ver `docs/02-arquitectura.md` §2.1).

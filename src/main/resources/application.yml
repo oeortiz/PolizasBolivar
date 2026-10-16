@@ -33,6 +33,10 @@ polizas:
   # autenticado cuando se active Spring Security (Etapa 5/7).
   canal: PORTAL_CLIENTES
   usuario-sistema: system_user
+  # Mock externo del CORE (POST /core-mock/evento). La clave llega por entorno; si está vacía,
+  # el endpoint rechaza todas las solicitudes (401). No hay valor por defecto en el código.
+  core-mock:
+    api-key: ${CORE_MOCK_API_KEY:}
   integracion:
     # 1 intento inicial + 3 reintentos (supuesto S-08).
     max-intentos: 4
@@ -106,7 +110,7 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
-  paths-to-match: /api/v1/**
+  paths-to-match: /api/v1/**, /core-mock/**
 
 logging:
   pattern:
